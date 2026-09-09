@@ -1,0 +1,39 @@
+# Python
+venv/
+backend/venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+*.db
+*.sqlite3
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.env.local
+.env.*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Video Files & Large Media (Exceeds GitHub 100MB Limit)
+*.mp4
+*.mkv
+*.avi
+*.zip
+*.dll
+*.wav
+videos/
+frontend/public/videos/
+tunnel.log
+cloudflared.exe
+
+# IDE / System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
