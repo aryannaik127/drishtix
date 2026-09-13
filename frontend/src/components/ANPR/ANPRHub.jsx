@@ -5,8 +5,7 @@ import {
   Download, AlertTriangle, Eye, ArrowUpDown, FileText
 } from 'lucide-react';
 import { playBeep, playWarningTone } from '../../utils/audioAlert';
-
-const API_BASE = 'http://localhost:8000/api';
+import { API_BASE } from '../../config/api';
 
 const DEFAULT_ANPR_LOGS = [
   { id: 'ANPR-101', timestamp: new Date(Date.now() - 45000).toISOString(), plate: 'MH01AB1234', type: 'SUV (Black Scorpio)', speed: 18.2, conf: 0.94, camera_id: 'CAM-03', status: 'WATCHLIST_HIT', risk: 'HIGH' },
@@ -89,6 +88,24 @@ export const ANPRHub = () => {
     }
   };
 
+  const [driveNotification, setDriveNotification] = useState(null);
+  const [isSyncingDrive, setIsSyncingDrive] = useState(false);
+
+  const handleSyncToDrive = async () => {
+    playBeep(1200, 0.08);
+    setIsSyncingDrive(true);
+    try {
+      const res = await axios.post(`${API_BASE}/storage/sync`);
+      setDriveNotification(`ANPR Watchlist & Registry archived to drive at ${res.data.timestamp}`);
+      setTimeout(() => setDriveNotification(null), 5000);
+    } catch (err) {
+      setDriveNotification('Drive sync failed.');
+      setTimeout(() => setDriveNotification(null), 4000);
+    } finally {
+      setIsSyncingDrive(false);
+    }
+  };
+
   const handleExportCSV = () => {
     playBeep(1100, 0.08);
     const headers = 'Log ID,Timestamp,Plate Number,Vehicle Type,Speed (km/h),OCR Confidence,Camera,Status,Risk\n';
@@ -122,12 +139,21 @@ export const ANPRHub = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={handleSyncToDrive}
+            disabled={isSyncingDrive}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-brand-dark border border-brand-accent/40 text-brand-accent hover:bg-brand-accent/10 transition-colors disabled:opacity-50"
+          >
+            <Download className={`w-3.5 h-3.5 ${isSyncingDrive ? 'animate-spin' : ''}`} />
+            {isSyncingDrive ? 'Archiving...' : 'Archive to Drive'}
+          </button>
+
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-brand-dark border border-brand-border/30 text-slate-300 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-brand-dark border border-brand-border/30 text-slate-300 hover:text-white transition-colors"
           >
-            <Download className="w-3.5 h-3.5" /> Export Log (CSV)
+            <Download className="w-3.5 h-3.5" /> Export CSV
           </button>
 
           <button
@@ -138,6 +164,12 @@ export const ANPRHub = () => {
           </button>
         </div>
       </div>
+
+      {driveNotification && (
+        <div className="p-3 bg-brand-success/15 border border-brand-success/40 text-brand-success rounded-lg text-xs font-semibold flex items-center gap-2 animate-slide-up">
+          <CheckCircle2 className="w-4 h-4" /> {driveNotification}
+        </div>
+      )}
 
       {/* ─── STATS ROW ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

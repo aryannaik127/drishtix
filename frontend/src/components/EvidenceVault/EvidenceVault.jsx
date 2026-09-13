@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import {
   FileText, ShieldAlert, Eye, Download, Printer, CheckCircle2,
   Lock, Camera, Clock, MapPin, Hash, Sparkles, X, ChevronRight,
-  Shield, Maximize2, FileCheck, Layers, AlertTriangle, Compass, Navigation
+  Shield, Maximize2, FileCheck, Layers, AlertTriangle, Compass, Navigation,
+  HardDrive, FolderSync, Check, ExternalLink
 } from 'lucide-react';
 import { playBeep } from '../../utils/audioAlert';
 import { CanvasCameraFeed } from '../LiveGrid/CanvasCameraFeed';
+import { API_BASE } from '../../config/api';
 
 const CAM_META = {
   'CAM-01': { name: 'North Sector Alpha Ridge', type: '4K Optical PTZ', baseCoords: { lat: 32.728514, lng: 74.856241, alt: 318, mgrs: '43S ND 8421 1902' }, mode: 'OPTICAL' },
@@ -60,6 +63,9 @@ function getEvidenceContext(item, idx) {
 export const EvidenceVault = ({ events = [], onSelectEvent }) => {
   const [filter, setFilter] = useState('ALL');
   const [selectedItem, setSelectedItem] = useState(null);
+  const [exportNotification, setExportNotification] = useState(null);
+  const [isExportingAll, setIsExportingAll] = useState(false);
+  const [savingIncidentId, setSavingIncidentId] = useState(null);
 
   const evidenceList = events.filter(e => {
     if (filter === 'ALL') return true;
@@ -69,6 +75,50 @@ export const EvidenceVault = ({ events = [], onSelectEvent }) => {
   const handlePrintDossier = (item) => {
     playBeep(1100, 0.08);
     window.print();
+  };
+
+  const handleSaveToDrive = async (item, e) => {
+    if (e) e.stopPropagation();
+    playBeep(1200, 0.08);
+    const eventId = item.id || 'EVT-001';
+    setSavingIncidentId(eventId);
+    try {
+      const res = await axios.post(`${API_BASE}/storage/export-event/${eventId}`);
+      setExportNotification({
+        type: 'success',
+        msg: `Dossier for ${eventId} saved to drive: ${res.data.saved_path}`
+      });
+      setTimeout(() => setExportNotification(null), 5000);
+    } catch (err) {
+      setExportNotification({
+        type: 'error',
+        msg: err.response?.data?.detail || 'Failed to export incident to connected drive.'
+      });
+      setTimeout(() => setExportNotification(null), 5000);
+    } finally {
+      setSavingIncidentId(null);
+    }
+  };
+
+  const handleExportAllToDrive = async () => {
+    playBeep(1300, 0.1);
+    setIsExportingAll(true);
+    try {
+      const res = await axios.post(`${API_BASE}/storage/sync`);
+      setExportNotification({
+        type: 'success',
+        msg: `All evidence dossiers & SHA-256 manifest exported to: ${res.data.destination_path}`
+      });
+      setTimeout(() => setExportNotification(null), 6000);
+    } catch (err) {
+      setExportNotification({
+        type: 'error',
+        msg: err.response?.data?.detail || 'Drive export failed.'
+      });
+      setTimeout(() => setExportNotification(null), 5000);
+    } finally {
+      setIsExportingAll(false);
+    }
   };
 
   return (
@@ -84,23 +134,51 @@ export const EvidenceVault = ({ events = [], onSelectEvent }) => {
           </p>
         </div>
 
-        {/* Severity Filters */}
-        <div className="flex items-center gap-2">
-          {['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(f => (
-            <button
-              key={f}
-              onClick={() => { playBeep(); setFilter(f); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all ${
-                filter === f
-                  ? 'bg-brand-accent2/30 text-white border border-brand-accent2/60 shadow-[0_0_15px_rgba(124,58,237,0.2)]'
-                  : 'bg-brand-dark text-slate-400 border border-brand-border/30 hover:text-white'
-              }`}
-            >
-              {f}
-            </button>
-          ))}
+        {/* Action Controls & Severity Filters */}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleExportAllToDrive}
+            disabled={isExportingAll}
+            className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-brand-dark border border-brand-accent/40 text-brand-accent hover:bg-brand-accent/10 transition-all flex items-center gap-1.5 shadow-[0_0_12px_rgba(0,212,255,0.15)] disabled:opacity-50"
+          >
+            <FolderSync className={`w-3.5 h-3.5 ${isExportingAll ? 'animate-spin' : ''}`} />
+            {isExportingAll ? 'Exporting...' : 'Export All to Drive'}
+          </button>
+
+          <div className="flex items-center gap-1.5 bg-brand-dark/90 p-1 rounded-lg border border-brand-border/30">
+            {['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(f => (
+              <button
+                key={f}
+                onClick={() => { playBeep(); setFilter(f); }}
+                className={`px-3 py-1 rounded-md text-xs font-bold uppercase transition-all ${
+                  filter === f
+                    ? 'bg-brand-accent2/40 text-white border border-brand-accent2/60 shadow-[0_0_12px_rgba(124,58,237,0.2)]'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Export Notification Toast */}
+      {exportNotification && (
+        <div className={`p-3 rounded-lg text-xs font-semibold flex items-center justify-between animate-slide-up ${
+          exportNotification.type === 'success'
+            ? 'bg-brand-success/15 border border-brand-success/40 text-brand-success'
+            : 'bg-red-500/15 border border-red-500/40 text-red-400'
+        }`}>
+          <div className="flex items-center gap-2 truncate">
+            {exportNotification.type === 'success' ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <ShieldAlert className="w-4 h-4 flex-shrink-0" />}
+            <span className="truncate">{exportNotification.msg}</span>
+          </div>
+          <button onClick={() => setExportNotification(null)} className="text-slate-400 hover:text-white ml-2">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* ─── EVIDENCE GRID ─── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -186,15 +264,25 @@ export const EvidenceVault = ({ events = [], onSelectEvent }) => {
                 </div>
               </div>
 
-              {/* Bottom Cryptographic Stamp */}
+              {/* Bottom Cryptographic Stamp & Drive Export Button */}
               <div className="px-4 py-2.5 bg-brand-deeper/90 border-t border-brand-border/20 flex items-center justify-between text-[10px] text-slate-400 font-mono">
                 <span className="flex items-center gap-1.5 text-slate-300">
                   <Lock className="w-3 h-3 text-brand-accent" />
                   <span>SHA-256 SEALED</span>
                 </span>
-                <span className="text-brand-accent font-bold group-hover:translate-x-0.5 transition-transform">
-                  INSPECT DOSSIER →
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => handleSaveToDrive(item, e)}
+                    className="px-2 py-1 rounded bg-brand-accent/15 border border-brand-accent/40 text-brand-accent hover:bg-brand-accent hover:text-brand-dark transition-all flex items-center gap-1 font-bold"
+                    title="Save single dossier to connected storage drive"
+                  >
+                    <HardDrive className="w-3 h-3" />
+                    {savingIncidentId === item.id ? 'Saving...' : 'Save to Drive'}
+                  </button>
+                  <span className="text-brand-accent font-bold group-hover:translate-x-0.5 transition-transform">
+                    DOSSIER →
+                  </span>
+                </div>
               </div>
             </div>
           );
@@ -241,6 +329,12 @@ export const EvidenceVault = ({ events = [], onSelectEvent }) => {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleSaveToDrive(selectedItem)}
+                    className="px-3.5 py-2 rounded-lg text-xs font-bold bg-brand-dark border border-brand-accent/50 text-brand-accent hover:bg-brand-accent hover:text-brand-dark transition-all flex items-center gap-1.5 shadow-md"
+                  >
+                    <HardDrive className="w-3.5 h-3.5" /> Save to Drive
+                  </button>
                   <button
                     onClick={() => handlePrintDossier(selectedItem)}
                     className="px-3.5 py-2 rounded-lg text-xs font-bold bg-brand-accent hover:bg-brand-accent/90 text-brand-dark transition-all flex items-center gap-1.5 shadow-md"

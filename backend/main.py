@@ -432,6 +432,86 @@ def save_settings(new_settings: dict, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "Settings saved successfully"}
 
+# ─── STORAGE & CONNECTED DRIVE ───────────
+import storage_manager
+
+class StorageConfigUpdate(BaseModel):
+    drive_path: str
+    auto_archive: Optional[bool] = True
+
+class StorageTestRequest(BaseModel):
+    target_path: str
+
+@app.get("/api/storage/drives")
+def get_system_drives_api():
+    """Detect available local, external, and cloud-synced storage drives."""
+    return storage_manager.detect_system_drives()
+
+@app.get("/api/storage/config")
+def get_storage_config_api(db: Session = Depends(get_db)):
+    """Get active storage drive configuration and telemetry."""
+    return storage_manager.get_storage_stats(db)
+
+@app.post("/api/storage/config")
+def update_storage_config_api(cfg: StorageConfigUpdate, db: Session = Depends(get_db)):
+    """Update active storage drive path and archiving options."""
+    # Test path first
+    test_res = storage_manager.test_drive_path(cfg.drive_path)
+    if not test_res["success"]:
+        raise HTTPException(status_code=400, detail=test_res["message"])
+
+    # Update DB
+    path_cfg = db.query(SystemConfig).filter(SystemConfig.key == "storage_drive_path").first()
+    if path_cfg:
+        path_cfg.value = test_res["path"]
+    else:
+        db.add(SystemConfig(key="storage_drive_path", value=test_res["path"]))
+
+    auto_cfg = db.query(SystemConfig).filter(SystemConfig.key == "storage_auto_archive").first()
+    if auto_cfg:
+        auto_cfg.value = "true" if cfg.auto_archive else "false"
+    else:
+        db.add(SystemConfig(key="storage_auto_archive", value="true" if cfg.auto_archive else "false"))
+
+    db.commit()
+    return {
+        "status": "Storage drive configured successfully",
+        "active_path": test_res["path"],
+        "free_gb": test_res["free_gb"],
+        "total_gb": test_res["total_gb"]
+    }
+
+@app.post("/api/storage/test")
+def test_storage_api(req: StorageTestRequest):
+    """Test read/write permissions for a specific drive folder path."""
+    return storage_manager.test_drive_path(req.target_path)
+
+@app.post("/api/storage/sync")
+def sync_drive_api(db: Session = Depends(get_db)):
+    """Export and synchronize all incident evidence, ANPR logs, and reports to active drive."""
+    return storage_manager.sync_all_to_drive(db)
+
+@app.post("/api/storage/export-event/{event_id}")
+def export_event_api(event_id: str, db: Session = Depends(get_db)):
+    """Export single incident dossier directly to connected drive."""
+    try:
+        return storage_manager.export_single_incident_to_drive(db, event_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.get("/api/storage/files")
+def get_drive_files_api(limit: int = 40, db: Session = Depends(get_db)):
+    """List recent evidence files stored on the active drive."""
+    return storage_manager.list_drive_files(db, limit=limit)
+
+@app.post("/api/storage/open-folder")
+def open_drive_folder_api(db: Session = Depends(get_db)):
+    """Open active storage folder in Windows File Explorer."""
+    path = storage_manager.get_active_storage_path(db)
+    success = storage_manager.open_folder_in_explorer(path)
+    return {"status": "SUCCESS" if success else "FAILED", "path": path}
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+

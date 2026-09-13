@@ -5,8 +5,7 @@ import {
   Clock, CheckSquare, Square, UserCheck, Volume2, Shield
 } from 'lucide-react';
 import { playBeep, playCriticalSiren, playRadioChirp } from '../../utils/audioAlert';
-
-const API_BASE = 'http://localhost:8000/api';
+import { API_BASE } from '../../config/api';
 
 const SOP_DEFAULT_STEPS = [
   { id: 1, label: '1. Confirm Threat Identity via Multi-Cam Feed', done: false },

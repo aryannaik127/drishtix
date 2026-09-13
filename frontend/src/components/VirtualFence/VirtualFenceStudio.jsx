@@ -6,8 +6,7 @@ import {
 } from 'lucide-react';
 import { playBeep, playCriticalSiren, playWarningTone } from '../../utils/audioAlert';
 import { CanvasCameraFeed } from '../LiveGrid/CanvasCameraFeed';
-
-const API_BASE = 'http://localhost:8000/api';
+import { API_BASE } from '../../config/api';
 
 export const VirtualFenceStudio = ({ cameras = [] }) => {
   const [selectedCam, setSelectedCam] = useState('CAM-04');

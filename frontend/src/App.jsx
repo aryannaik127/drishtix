@@ -23,8 +23,7 @@ import {
   playBeep, playWarningTone, playCriticalSiren,
   isAudioMuted, toggleAudioMute
 } from './utils/audioAlert';
-
-const API_BASE = 'http://localhost:8000/api';
+import { API_BASE } from './config/api';
 
 const DEFAULT_CAMERAS = [
   { id: 'CAM-01', name: 'Border Patrol Alpha', status: 'ONLINE', type: 'PTZ IP Camera', location: 'Border Zone A - North Sector', zone: 'Sector 7', ip: '192.168.1.101', lat: 32.7285, lng: 74.8562 },
